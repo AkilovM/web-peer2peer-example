@@ -103,58 +103,70 @@ async function startConnection() {
 
 // Получение и установка offer от другого пира
 async function receiveOffer(offer) {
-    peerConnection = new RTCPeerConnection();
+    try {
+        peerConnection = new RTCPeerConnection();
 
-    peerConnection.ondatachannel = (event) => {
-        dataChannel = event.channel;
-        dataChannel.onopen = () => console.log('Data channel opened');
-        dataChannel.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            ball = data.ball;
-            remotePaddle = data.paddle;
+        peerConnection.ondatachannel = (event) => {
+            dataChannel = event.channel;
+            dataChannel.onopen = () => console.log('Data channel opened');
+            dataChannel.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                ball = data.ball;
+                remotePaddle = data.paddle;
+            };
         };
-    };
 
-    peerConnection.onicecandidate = (event) => {
-        if (event.candidate) {
-            console.log('New ICE candidate:', event.candidate);
-            document.getElementById('answerBox').value = JSON.stringify({
-                type: 'candidate',
-                candidate: event.candidate
-            });
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                console.log('New ICE candidate:', event.candidate);
+                document.getElementById('answerBox').value = JSON.stringify({
+                    type: 'candidate',
+                    candidate: event.candidate
+                });
+            }
+        };
+
+        const remoteDesc = new RTCSessionDescription(offer);
+        await peerConnection.setRemoteDescription(remoteDesc);
+        console.log('Offer received and set as remote description:', offer);
+
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        document.getElementById('answerBox').value = JSON.stringify(peerConnection.localDescription);
+        console.log('Answer created and set as local description:', answer);
+
+        // Обработка ранее полученных ICE-кандидатов
+        for (let candidate of iceCandidatesFromRemote) {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
         }
-    };
-
-    const remoteDesc = new RTCSessionDescription(offer);
-    await peerConnection.setRemoteDescription(remoteDesc);
-    console.log('Offer received and set as remote description:', offer);
-
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    document.getElementById('answerBox').value = JSON.stringify(peerConnection.localDescription);
-    console.log('Answer created and set as local description:', answer);
-
-    // Если уже есть полученные ICE-кандидаты от другого пира, добавляем их
-    for (let candidate of iceCandidatesFromRemote) {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (error) {
+        console.error('Error handling offer:', error);
     }
 }
 
 // Получение и установка answer от другого пира
 async function receiveAnswer(answer) {
-    const remoteDesc = new RTCSessionDescription(answer);
-    await peerConnection.setRemoteDescription(remoteDesc);
-    console.log('Answer received and set as remote description:', answer);
+    try {
+        const remoteDesc = new RTCSessionDescription(answer);
+        await peerConnection.setRemoteDescription(remoteDesc);
+        console.log('Answer received and set as remote description:', answer);
+    } catch (error) {
+        console.error('Error handling answer:', error);
+    }
 }
 
 // Получение и установка ICE-кандидата
 async function receiveIceCandidate(candidate) {
-    if (peerConnection && peerConnection.remoteDescription) {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        console.log('ICE candidate added:', candidate);
-    } else {
-        iceCandidatesFromRemote.push(candidate);
-        console.log('ICE candidate stored for later use:', candidate);
+    try {
+        if (peerConnection && peerConnection.remoteDescription) {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            console.log('ICE candidate added:', candidate);
+        } else {
+            iceCandidatesFromRemote.push(candidate);
+            console.log('ICE candidate stored for later use:', candidate);
+        }
+    } catch (error) {
+        console.error('Error adding ICE candidate:', error);
     }
 }
 
