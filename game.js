@@ -5,6 +5,10 @@ let ball = { x: canvas.width / 2, y: canvas.height / 2, radius: 10, dx: 4, dy: 4
 let localPaddle = { x: 0, y: canvas.height - 20, width: 100, height: 10, speed: 20 };
 let remotePaddle = { x: 0, y: 10, width: 100, height: 10 };
 
+let peerConnection = null;
+let dataChannel = null;
+let iceCandidatesFromRemote = [];
+
 function drawBall() {
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
@@ -69,8 +73,6 @@ document.addEventListener('keydown', (e) => {
 });
 
 // WebRTC Connection
-let peerConnection = null;
-let dataChannel = null;
 
 async function startConnection() {
     peerConnection = new RTCPeerConnection();
@@ -86,6 +88,10 @@ async function startConnection() {
     peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
             console.log('New ICE candidate:', event.candidate);
+            document.getElementById('answerBox').value = JSON.stringify({
+                type: 'candidate',
+                candidate: event.candidate
+            });
         }
     };
 
@@ -112,6 +118,10 @@ async function receiveOffer(offer) {
     peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
             console.log('New ICE candidate:', event.candidate);
+            document.getElementById('answerBox').value = JSON.stringify({
+                type: 'candidate',
+                candidate: event.candidate
+            });
         }
     };
 
@@ -123,6 +133,11 @@ async function receiveOffer(offer) {
     await peerConnection.setLocalDescription(answer);
     document.getElementById('answerBox').value = JSON.stringify(peerConnection.localDescription);
     console.log('Answer created:', answer);
+
+    // Если уже есть полученные ICE-кандидаты от другого пира, добавляем их
+    for (let candidate of iceCandidatesFromRemote) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    }
 }
 
 // Получение и установка answer от другого пира
@@ -132,12 +147,25 @@ async function receiveAnswer(answer) {
     console.log('Answer received and set as remote description');
 }
 
+// Получение и установка ICE-кандидата
+async function receiveIceCandidate(candidate) {
+    if (peerConnection && peerConnection.remoteDescription) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    } else {
+        iceCandidatesFromRemote.push(candidate);
+    }
+}
+
 // Начало подключения
 document.getElementById('startButton').onclick = async () => {
     const offerText = document.getElementById('offerBox').value;
     if (offerText) {
-        const offer = JSON.parse(offerText);
-        await receiveOffer(offer);
+        const parsedOffer = JSON.parse(offerText);
+        if (parsedOffer.type === 'offer') {
+            await receiveOffer(parsedOffer);
+        } else if (parsedOffer.type === 'candidate') {
+            await receiveIceCandidate(parsedOffer.candidate);
+        }
     } else {
         await startConnection();
     }
