@@ -54,20 +54,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
 
+            // Устанавливаем удаленное описание
             const remoteDesc = new RTCSessionDescription(offer);
             await peerConnection.setRemoteDescription(remoteDesc);
             console.log('Remote description set:', remoteDesc);
 
+            // Создаем и устанавливаем локальное описание (answer)
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
             console.log('Answer created and set as local description:', answer);
             document.getElementById('answerBox').value = JSON.stringify(peerConnection.localDescription);
 
+            // Обрабатываем отложенные ICE-кандидаты
             for (let candidate of iceCandidatesFromRemote) {
                 console.log('Adding stored ICE candidate:', candidate);
                 await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
             }
-            iceCandidatesFromRemote = [];
+            iceCandidatesFromRemote = []; // Очистка списка кандидатов после их добавления
         } catch (error) {
             console.error('Error handling offer:', error);
         }
