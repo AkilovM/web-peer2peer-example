@@ -68,5 +68,4 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowRight') movePaddle(localPaddle, 1);
 });
 
-// Начало игрового цикла
-gameLoop();
+window.update
