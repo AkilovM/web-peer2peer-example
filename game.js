@@ -98,7 +98,7 @@ async function startConnection() {
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
     document.getElementById('answerBox').value = JSON.stringify(peerConnection.localDescription);
-    console.log('Offer created:', offer);
+    console.log('Offer created and set as local description:', offer);
 }
 
 // Получение и установка offer от другого пира
@@ -127,12 +127,12 @@ async function receiveOffer(offer) {
 
     const remoteDesc = new RTCSessionDescription(offer);
     await peerConnection.setRemoteDescription(remoteDesc);
-    console.log('Offer received and set as remote description');
+    console.log('Offer received and set as remote description:', offer);
 
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
     document.getElementById('answerBox').value = JSON.stringify(peerConnection.localDescription);
-    console.log('Answer created:', answer);
+    console.log('Answer created and set as local description:', answer);
 
     // Если уже есть полученные ICE-кандидаты от другого пира, добавляем их
     for (let candidate of iceCandidatesFromRemote) {
@@ -144,15 +144,17 @@ async function receiveOffer(offer) {
 async function receiveAnswer(answer) {
     const remoteDesc = new RTCSessionDescription(answer);
     await peerConnection.setRemoteDescription(remoteDesc);
-    console.log('Answer received and set as remote description');
+    console.log('Answer received and set as remote description:', answer);
 }
 
 // Получение и установка ICE-кандидата
 async function receiveIceCandidate(candidate) {
     if (peerConnection && peerConnection.remoteDescription) {
         await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        console.log('ICE candidate added:', candidate);
     } else {
         iceCandidatesFromRemote.push(candidate);
+        console.log('ICE candidate stored for later use:', candidate);
     }
 }
 
@@ -163,6 +165,8 @@ document.getElementById('startButton').onclick = async () => {
         const parsedOffer = JSON.parse(offerText);
         if (parsedOffer.type === 'offer') {
             await receiveOffer(parsedOffer);
+        } else if (parsedOffer.type === 'answer') {
+            await receiveAnswer(parsedOffer);
         } else if (parsedOffer.type === 'candidate') {
             await receiveIceCandidate(parsedOffer.candidate);
         }
