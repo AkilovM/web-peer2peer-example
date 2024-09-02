@@ -66,11 +66,14 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('answerBox').value = JSON.stringify(peerConnection.localDescription);
 
             // Обрабатываем отложенные ICE-кандидаты
-            for (let candidate of iceCandidatesFromRemote) {
-                console.log('Adding stored ICE candidate:', candidate);
-                await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            if (iceCandidatesFromRemote.length > 0) {
+                console.log('Processing stored ICE candidates...');
+                for (let candidate of iceCandidatesFromRemote) {
+                    console.log('Adding stored ICE candidate:', candidate);
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                }
+                iceCandidatesFromRemote = []; // Очистка списка кандидатов после их добавления
             }
-            iceCandidatesFromRemote = []; // Очистка списка кандидатов после их добавления
         } catch (error) {
             console.error('Error handling offer:', error);
         }
