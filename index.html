@@ -5,12 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>P2P Pong</title>
     <style>
-        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #282c34; color: white; font-family: Arial, sans-serif; }
-        canvas { border: 1px solid white; }
+        body { margin: 0; display: flex; flex-direction: column; align-items: center; background-color: #282c34; color: white; font-family: Arial, sans-serif; }
+        canvas { border: 1px solid white; margin-top: 20px; }
+        textarea { width: 90%; height: 100px; margin-top: 10px; }
     </style>
 </head>
 <body>
+    <h1>P2P Pong</h1>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <textarea id="offerBox" placeholder="Paste offer here"></textarea>
+    <button id="startButton">Start Connection</button>
+    <textarea id="answerBox" placeholder="Your answer will appear here"></textarea>
     <script src="game.js"></script>
 </body>
 </html>

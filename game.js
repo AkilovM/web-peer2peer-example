@@ -25,19 +25,19 @@ function moveBall() {
     ball.x += ball.dx;
     ball.y += ball.dy;
 
-    if(ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) {
+    if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) {
         ball.dx = -ball.dx;
     }
 
-    if(ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height) {
+    if (ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height) {
         ball.dy = -ball.dy;
     }
 
-    if(ball.y + ball.radius > localPaddle.y && ball.x > localPaddle.x && ball.x < localPaddle.x + localPaddle.width) {
+    if (ball.y + ball.radius > localPaddle.y && ball.x > localPaddle.x && ball.x < localPaddle.x + localPaddle.width) {
         ball.dy = -ball.dy;
     }
 
-    if(ball.y - ball.radius < remotePaddle.y + remotePaddle.height && ball.x > remotePaddle.x && ball.x < remotePaddle.x + remotePaddle.width) {
+    if (ball.y - ball.radius < remotePaddle.y + remotePaddle.height && ball.x > remotePaddle.x && ball.x < remotePaddle.x + remotePaddle.width) {
         ball.dy = -ball.dy;
     }
 }
@@ -45,8 +45,8 @@ function moveBall() {
 function movePaddle(paddle, dir) {
     paddle.x += dir * paddle.speed;
 
-    if(paddle.x < 0) paddle.x = 0;
-    if(paddle.x + paddle.width > canvas.width) paddle.x = canvas.width - paddle.width;
+    if (paddle.x < 0) paddle.x = 0;
+    if (paddle.x + paddle.width > canvas.width) paddle.x = canvas.width - paddle.width;
 }
 
 function gameLoop() {
@@ -64,8 +64,8 @@ function gameLoop() {
 }
 
 document.addEventListener('keydown', (e) => {
-    if(e.key === 'ArrowLeft') movePaddle(localPaddle, -1);
-    if(e.key === 'ArrowRight') movePaddle(localPaddle, 1);
+    if (e.key === 'ArrowLeft') movePaddle(localPaddle, -1);
+    if (e.key === 'ArrowRight') movePaddle(localPaddle, 1);
 });
 
 // WebRTC Connection
@@ -86,23 +86,61 @@ async function startConnection() {
     peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
             console.log('New ICE candidate:', event.candidate);
-            // Здесь нужно передать кандидата на другой пир (например, через WebSocket)
         }
     };
 
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
+    document.getElementById('answerBox').value = JSON.stringify(peerConnection.localDescription);
     console.log('Offer created:', offer);
-
-    // Передайте offer другому пиру, чтобы он мог создать ответ
 }
 
-// Предположим, вы получили ответ от другого пира
+// Получение и установка offer от другого пира
+async function receiveOffer(offer) {
+    peerConnection = new RTCPeerConnection();
+
+    peerConnection.ondatachannel = (event) => {
+        dataChannel = event.channel;
+        dataChannel.onopen = () => console.log('Data channel opened');
+        dataChannel.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            ball = data.ball;
+            remotePaddle = data.paddle;
+        };
+    };
+
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+            console.log('New ICE candidate:', event.candidate);
+        }
+    };
+
+    const remoteDesc = new RTCSessionDescription(offer);
+    await peerConnection.setRemoteDescription(remoteDesc);
+    console.log('Offer received and set as remote description');
+
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    document.getElementById('answerBox').value = JSON.stringify(peerConnection.localDescription);
+    console.log('Answer created:', answer);
+}
+
+// Получение и установка answer от другого пира
 async function receiveAnswer(answer) {
     const remoteDesc = new RTCSessionDescription(answer);
     await peerConnection.setRemoteDescription(remoteDesc);
     console.log('Answer received and set as remote description');
 }
 
-startConnection();
+// Начало подключения
+document.getElementById('startButton').onclick = async () => {
+    const offerText = document.getElementById('offerBox').value;
+    if (offerText) {
+        const offer = JSON.parse(offerText);
+        await receiveOffer(offer);
+    } else {
+        await startConnection();
+    }
+};
+
 gameLoop();
