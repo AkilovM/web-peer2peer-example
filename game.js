@@ -5,10 +5,6 @@ let ball = { x: canvas.width / 2, y: canvas.height / 2, radius: 10, dx: 4, dy: 4
 let localPaddle = { x: 0, y: canvas.height - 20, width: 100, height: 10, speed: 20 };
 let remotePaddle = { x: 0, y: 10, width: 100, height: 10 };
 
-let peerConnection = null;
-let dataChannel = null;
-let iceCandidatesFromRemote = [];
-
 function drawBall() {
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
@@ -60,8 +56,8 @@ function gameLoop() {
     drawPaddle(remotePaddle);
     moveBall();
 
-    if (dataChannel && dataChannel.readyState === 'open') {
-        dataChannel.send(JSON.stringify({ ball, paddle: localPaddle }));
+    if (window.dataChannel && window.dataChannel.readyState === 'open') {
+        window.dataChannel.send(JSON.stringify({ ball, paddle: localPaddle }));
     }
 
     requestAnimationFrame(gameLoop);
@@ -72,119 +68,5 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowRight') movePaddle(localPaddle, 1);
 });
 
-// WebRTC Connection
-
-async function startConnection() {
-    peerConnection = new RTCPeerConnection();
-
-    dataChannel = peerConnection.createDataChannel('game');
-    dataChannel.onopen = () => console.log('Data channel opened');
-    dataChannel.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        ball = data.ball;
-        remotePaddle = data.paddle;
-    };
-
-    peerConnection.onicecandidate = (event) => {
-        if (event.candidate) {
-            console.log('New ICE candidate:', event.candidate);
-            document.getElementById('answerBox').value = JSON.stringify({
-                type: 'candidate',
-                candidate: event.candidate
-            });
-        }
-    };
-
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-    document.getElementById('answerBox').value = JSON.stringify(peerConnection.localDescription);
-    console.log('Offer created and set as local description:', offer);
-}
-
-// Получение и установка offer от другого пира
-async function receiveOffer(offer) {
-    try {
-        peerConnection = new RTCPeerConnection();
-
-        peerConnection.ondatachannel = (event) => {
-            dataChannel = event.channel;
-            dataChannel.onopen = () => console.log('Data channel opened');
-            dataChannel.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                ball = data.ball;
-                remotePaddle = data.paddle;
-            };
-        };
-
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                console.log('New ICE candidate:', event.candidate);
-                document.getElementById('answerBox').value = JSON.stringify({
-                    type: 'candidate',
-                    candidate: event.candidate
-                });
-            }
-        };
-
-        const remoteDesc = new RTCSessionDescription(offer);
-        await peerConnection.setRemoteDescription(remoteDesc);
-        console.log('Offer received and set as remote description:', offer);
-
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        document.getElementById('answerBox').value = JSON.stringify(peerConnection.localDescription);
-        console.log('Answer created and set as local description:', answer);
-
-        // Обработка ранее полученных ICE-кандидатов
-        for (let candidate of iceCandidatesFromRemote) {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-    } catch (error) {
-        console.error('Error handling offer:', error);
-    }
-}
-
-// Получение и установка answer от другого пира
-async function receiveAnswer(answer) {
-    try {
-        const remoteDesc = new RTCSessionDescription(answer);
-        await peerConnection.setRemoteDescription(remoteDesc);
-        console.log('Answer received and set as remote description:', answer);
-    } catch (error) {
-        console.error('Error handling answer:', error);
-    }
-}
-
-// Получение и установка ICE-кандидата
-async function receiveIceCandidate(candidate) {
-    try {
-        if (peerConnection && peerConnection.remoteDescription) {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-            console.log('ICE candidate added:', candidate);
-        } else {
-            iceCandidatesFromRemote.push(candidate);
-            console.log('ICE candidate stored for later use:', candidate);
-        }
-    } catch (error) {
-        console.error('Error adding ICE candidate:', error);
-    }
-}
-
-// Начало подключения
-document.getElementById('startButton').onclick = async () => {
-    const offerText = document.getElementById('offerBox').value;
-    if (offerText) {
-        const parsedOffer = JSON.parse(offerText);
-        if (parsedOffer.type === 'offer') {
-            await receiveOffer(parsedOffer);
-        } else if (parsedOffer.type === 'answer') {
-            await receiveAnswer(parsedOffer);
-        } else if (parsedOffer.type === 'candidate') {
-            await receiveIceCandidate(parsedOffer.candidate);
-        }
-    } else {
-        await startConnection();
-    }
-};
-
+// Начало игрового цикла
 gameLoop();
