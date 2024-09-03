@@ -1,71 +1,95 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-let ball = { x: canvas.width / 2, y: canvas.height / 2, radius: 10, dx: 4, dy: 4 };
-let localPaddle = { x: 0, y: canvas.height - 20, width: 100, height: 10, speed: 20 };
-let remotePaddle = { x: 0, y: 10, width: 100, height: 10 };
+let localPlayer = { x: 50, y: 50, color: 'blue' };
+let remotePlayer = { x: 100, y: 100, color: 'red' };
 
-function drawBall() {
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-    ctx.fillStyle = "white";
-    ctx.fill();
-    ctx.closePath();
-}
+const peerConnection = new RTCPeerConnection();
+let dataChannel;
 
-function drawPaddle(paddle) {
-    ctx.beginPath();
-    ctx.rect(paddle.x, paddle.y, paddle.width, paddle.height);
-    ctx.fillStyle = "white";
-    ctx.fill();
-    ctx.closePath();
-}
+// Инициализация канала передачи данных WebRTC
+peerConnection.ondatachannel = (event) => {
+    dataChannel = event.channel;
 
-function moveBall() {
-    ball.x += ball.dx;
-    ball.y += ball.dy;
+    dataChannel.onopen = () => {
+        console.log('Data channel is open');
+    };
 
-    if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) {
-        ball.dx = -ball.dx;
-    }
+    dataChannel.onmessage = (event) => {
+        const remotePosition = JSON.parse(event.data);
+        remotePlayer.x = remotePosition.x;
+        remotePlayer.y = remotePosition.y;
+    };
+};
 
-    if (ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height) {
-        ball.dy = -ball.dy;
-    }
-
-    if (ball.y + ball.radius > localPaddle.y && ball.x > localPaddle.x && ball.x < localPaddle.x + localPaddle.width) {
-        ball.dy = -ball.dy;
-    }
-
-    if (ball.y - ball.radius < remotePaddle.y + remotePaddle.height && ball.x > remotePaddle.x && ball.x < remotePaddle.x + remotePaddle.width) {
-        ball.dy = -ball.dy;
+// Отправка позиции локального игрока
+function sendPosition() {
+    if (dataChannel && dataChannel.readyState === 'open') {
+        dataChannel.send(JSON.stringify(localPlayer));
     }
 }
 
-function movePaddle(paddle, dir) {
-    paddle.x += dir * paddle.speed;
-
-    if (paddle.x < 0) paddle.x = 0;
-    if (paddle.x + paddle.width > canvas.width) paddle.x = canvas.width - paddle.width;
-}
-
+// Рендеринг игрового состояния
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawBall();
-    drawPaddle(localPaddle);
-    drawPaddle(remotePaddle);
-    moveBall();
 
-    if (window.dataChannel && window.dataChannel.readyState === 'open') {
-        window.dataChannel.send(JSON.stringify({ ball, paddle: localPaddle }));
-    }
+    ctx.fillStyle = localPlayer.color;
+    ctx.fillRect(localPlayer.x, localPlayer.y, 50, 50);
 
+    ctx.fillStyle = remotePlayer.color;
+    ctx.fillRect(remotePlayer.x, remotePlayer.y, 50, 50);
+
+    sendPosition();
     requestAnimationFrame(gameLoop);
 }
 
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft') movePaddle(localPaddle, -1);
-    if (e.key === 'ArrowRight') movePaddle(localPaddle, 1);
+// Управление движением игрока
+window.addEventListener('keydown', (e) => {
+    switch (e.key) {
+        case 'ArrowUp':
+            localPlayer.y -= 10;
+            break;
+        case 'ArrowDown':
+            localPlayer.y += 10;
+            break;
+        case 'ArrowLeft':
+            localPlayer.x -= 10;
+            break;
+        case 'ArrowRight':
+            localPlayer.x += 10;
+            break;
+    }
 });
 
-window.update
+// Создание и отправка SDP предложения
+document.getElementById('offerButton').addEventListener('click', async () => {
+    dataChannel = peerConnection.createDataChannel('game');
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    document.getElementById('localDescription').value = JSON.stringify(peerConnection.localDescription);
+});
+
+// Установка удалённого SDP ответа
+document.getElementById('answerButton').addEventListener('click', async () => {
+    const remoteDesc = JSON.parse(document.getElementById('remoteDescription').value);
+    await peerConnection.setRemoteDescription(remoteDesc);
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    document.getElementById('localDescription').value = JSON.stringify(peerConnection.localDescription);
+});
+
+// Установка удалённого SDP предложения
+document.getElementById('connectButton').addEventListener('click', async () => {
+    const remoteDesc = JSON.parse(document.getElementById('remoteDescription').value);
+    await peerConnection.setRemoteDescription(remoteDesc);
+});
+
+// Обработка ICE кандидатов
+peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+        console.log('ICE Candidate:', event.candidate);
+    }
+};
+
+// Начинаем игровой цикл
+gameLoop();
